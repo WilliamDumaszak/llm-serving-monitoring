@@ -1,0 +1,150 @@
+# ── LLMOps API ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llmops-api
+  namespace: llmops
+  labels:
+    app: llmops-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: llmops-api
+  template:
+    metadata:
+      labels:
+        app: llmops-api
+      annotations:
+        # Prometheus auto-discovery: scrapes /metrics on port 8000
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: llmops-api
+          image: DOCKER_USERNAME/llm-serving-monitoring:IMAGE_TAG
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: llmops-config
+          env:
+            - name: AZURE_OPENAI_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: llmops-secrets
+                  key: AZURE_OPENAI_ENDPOINT
+                  optional: true
+            - name: AZURE_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llmops-secrets
+                  key: AZURE_OPENAI_API_KEY
+                  optional: true
+            - name: AZURE_SEARCH_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: llmops-secrets
+                  key: AZURE_SEARCH_ENDPOINT
+                  optional: true
+            - name: AZURE_SEARCH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llmops-secrets
+                  key: AZURE_SEARCH_API_KEY
+                  optional: true
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: llmops-secrets
+                  key: DB_PASSWORD
+                  optional: true
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+---
+# ── vLLM inference server ─────────────────────────────────────────────────────
+# vLLM uses PagedAttention to maximize GPU KV-cache utilization.
+# Deploy on a GPU node (tolerations below match the nvidia.com/gpu taint).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm
+  namespace: llmops
+  labels:
+    app: vllm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm
+  template:
+    metadata:
+      labels:
+        app: vllm
+    spec:
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          args:
+            - "--model"
+            - "meta-llama/Llama-3.2-1B-Instruct"
+            - "--port"
+            - "8001"
+            - "--max-model-len"
+            - "4096"
+            - "--tensor-parallel-size"
+            - "1"
+          ports:
+            - containerPort: 8001
+          env:
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: llmops-secrets
+                  key: HF_TOKEN
+                  optional: true
+          resources:
+            requests:
+              memory: "8Gi"
+              cpu: "2"
+              nvidia.com/gpu: "1"
+            limits:
+              memory: "16Gi"
+              cpu: "4"
+              nvidia.com/gpu: "1"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 45
+            periodSeconds: 15

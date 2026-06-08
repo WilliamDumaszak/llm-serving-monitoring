@@ -1,0 +1,21 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+pydantic>=2.10.0
+elasticsearch>=8.0.0
+psycopg2-binary>=2.9.0
+prometheus-client>=0.21.0
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+langchain-openai>=0.3.0
+PyYAML>=6.0
+requests>=2.32.0
+pandas>=2.2.0
+pytest>=8.3.0
+httpx>=0.28.0
+# Azure
+openai>=1.0.0
+azure-search-documents>=11.4.0
+azure-identity>=1.17.0
+# Evaluation
+ragas>=0.2.0
+datasets>=2.0.0

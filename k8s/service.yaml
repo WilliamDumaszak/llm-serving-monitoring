@@ -1,0 +1,29 @@
+# ── LLMOps API — external LoadBalancer ───────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: llmops-api-service
+  namespace: llmops
+spec:
+  selector:
+    app: llmops-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: LoadBalancer
+---
+# ── vLLM — internal ClusterIP (only API can reach it) ─────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-service
+  namespace: llmops
+spec:
+  selector:
+    app: vllm
+  ports:
+    - protocol: TCP
+      port: 8001
+      targetPort: 8001
+  type: ClusterIP

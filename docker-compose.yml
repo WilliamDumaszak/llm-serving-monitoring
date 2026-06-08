@@ -1,0 +1,120 @@
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: llmops
+      POSTGRES_PASSWORD: llmops
+      POSTGRES_DB: llmops
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U llmops"]
+      interval: 10s
+      retries: 5
+
+  # ── ElasticSearch ──────────────────────────────────────────────────────────
+  elasticsearch:
+    image: elasticsearch:8.17.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      retries: 5
+
+  # ── Ollama — local LLM ─────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434"]
+      interval: 15s
+      retries: 5
+
+  # ── Airflow ────────────────────────────────────────────────────────────────
+  airflow:
+    image: apache/airflow:2.10.4
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://llmops:llmops@postgres:5432/llmops
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__SECRET_KEY: "changeme-in-production"
+      ES_HOST: http://elasticsearch:9200
+      ES_INDEX: rag_documents
+      DOCS_DIR: /opt/airflow/documents
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./documents:/opt/airflow/documents
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      bash -c "airflow db migrate &&
+               airflow users create --role Admin --username airflow --password airflow --firstname Admin --lastname User --email admin@example.com &&
+               airflow webserver & airflow scheduler"
+
+  # ── Prometheus ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - api
+
+  # ── Grafana ────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+
+  # ── FastAPI LLM Serving ────────────────────────────────────────────────────
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      HUGGINGFACE_KEY: ${HUGGINGFACE_KEY:-}
+    volumes:
+      - ./documents:/app/documents
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 20s
+      retries: 3
+
+volumes:
+  postgres_data:
+  es_data:
+  ollama_models:
+  grafana_data:
