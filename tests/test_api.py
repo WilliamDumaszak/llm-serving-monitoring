@@ -22,7 +22,7 @@ def test_health(client):
 
 @patch("api.main.get_client")
 @patch("api.main.search")
-@patch("api.main.query_llm", return_value=("Test answer", 0.5))
+@patch("api.main.query_llm", return_value=("Test answer", 0.5, 120, 40))
 @patch("api.main.save_interaction")
 def test_query(mock_save, mock_llm, mock_search, mock_es, client):
     mock_search.return_value = [{"doc_id": "abc123", "answer": "some context"}]

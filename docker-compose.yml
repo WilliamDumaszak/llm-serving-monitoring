@@ -38,9 +38,10 @@ services:
     volumes:
       - ollama_models:/root/.ollama
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434"]
+      test: ["CMD-SHELL", "ollama list > /dev/null 2>&1 || exit 1"]
       interval: 15s
-      retries: 5
+      retries: 10
+      start_period: 40s
 
   # ── Airflow ────────────────────────────────────────────────────────────────
   airflow:
@@ -65,6 +66,16 @@ services:
       bash -c "airflow db migrate &&
                airflow users create --role Admin --username airflow --password airflow --firstname Admin --lastname User --email admin@example.com &&
                airflow webserver & airflow scheduler"
+
+  # ── Redis — semantic response cache ───────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
 
   # ── Prometheus ─────────────────────────────────────────────────────────────
   prometheus:
@@ -98,6 +109,9 @@ services:
       - "8000:8000"
     environment:
       HUGGINGFACE_KEY: ${HUGGINGFACE_KEY:-}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      CACHE_TTL_SECONDS: "3600"
     volumes:
       - ./documents:/app/documents
     depends_on:
@@ -106,6 +120,8 @@ services:
       elasticsearch:
         condition: service_healthy
       ollama:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -118,3 +134,4 @@ volumes:
   es_data:
   ollama_models:
   grafana_data:
+  redis_data:

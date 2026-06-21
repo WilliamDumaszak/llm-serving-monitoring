@@ -1,6 +1,6 @@
 llm:
   provider: "ollama"           # "ollama" | "huggingface" | "azure_openai" | "vllm"
-  model: "llama3.2"
+  model: "llama3.2:1b"
   ollama_base_url: "http://ollama:11434"
   hf_model: "google-bert/bert-large-uncased-whole-word-masking-finetuned-squad"
   temperature: 0.3

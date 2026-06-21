@@ -11,6 +11,7 @@ class QueryResponse(BaseModel):
     response_time_ms: float
     hit_rate: float
     mrr: float
+    cache_hit: bool = False
 
 
 class FeedbackRequest(BaseModel):
@@ -23,6 +24,7 @@ class HealthResponse(BaseModel):
     status: str
     elasticsearch_ready: bool
     database_ready: bool
+    cache_ready: bool = False
 
 
 class RagasSample(BaseModel):

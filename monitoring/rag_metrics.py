@@ -1,4 +1,4 @@
-"""RAG evaluation metrics — hit_rate and MRR."""
+"""RAG evaluation metrics — hit_rate, MRR, and Precision@K."""
 
 
 def hit_rate(relevance_total: list[list[bool]]) -> float:
@@ -17,6 +17,23 @@ def mrr(relevance_total: list[list[bool]]) -> float:
                 score += 1 / (rank + 1)
                 break
     return score / len(relevance_total)
+
+
+def precision_at_k(relevance: list[bool], k: int = 5) -> float:
+    """
+    Fraction of the top-k retrieved documents that are relevant.
+
+    Args:
+        relevance: ordered list of booleans (True = relevant) for retrieved docs.
+        k:         cut-off rank (default 5).
+
+    Returns:
+        P@k score in [0, 1].
+    """
+    if not relevance:
+        return 0.0
+    top_k = relevance[:k]
+    return sum(top_k) / len(top_k)
 
 
 def evaluate_search(search_fn, ground_truth: list[dict]) -> dict:
